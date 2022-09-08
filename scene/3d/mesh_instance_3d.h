@@ -33,6 +33,9 @@
 
 #include "core/templates/local_vector.h"
 #include "scene/3d/visual_instance_3d.h"
+
+MAKE_TYPED_ARRAY(Vector<Ref<Shape3D>>, Variant::ARRAY);
+
 class Skin;
 class SkinReference;
 
