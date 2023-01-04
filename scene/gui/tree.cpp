@@ -2580,8 +2580,8 @@ void Tree::_range_click_timeout() {
 		mb.instantiate();
 
 		int x_limit = get_size().width - theme_cache.panel_style->get_minimum_size().width;
-		if (h_scroll->is_visible()) {
-			x_limit -= h_scroll->get_minimum_size().width;
+		if (v_scroll->is_visible()) {
+			x_limit -= v_scroll->get_minimum_size().width;
 		}
 
 		cache.rtl = is_layout_rtl();
@@ -3640,8 +3640,8 @@ void Tree::gui_input(const Ref<InputEvent> &p_event) {
 				propagate_mouse_activated = false;
 
 				int x_limit = get_size().width - theme_cache.panel_style->get_minimum_size().width;
-				if (h_scroll->is_visible()) {
-					x_limit -= h_scroll->get_minimum_size().width;
+				if (v_scroll->is_visible()) {
+					x_limit -= v_scroll->get_minimum_size().width;
 				}
 
 				cache.rtl = is_layout_rtl();
@@ -3785,7 +3785,9 @@ bool Tree::edit_selected() {
 	} else if (c.mode == TreeItem::CELL_MODE_STRING || c.mode == TreeItem::CELL_MODE_RANGE) {
 		Rect2 popup_rect;
 
-		Vector2 ofs(0, Math::floor((text_editor->get_size().height - rect.size.height) / 2)); // "floor()" centers vertically.
+		int value_editor_height = c.mode == TreeItem::CELL_MODE_RANGE ? value_editor->get_minimum_size().height : 0;
+		// "floor()" centers vertically.
+		Vector2 ofs(0, Math::floor((MAX(text_editor->get_minimum_size().height, rect.size.height - value_editor_height) - rect.size.height) / 2));
 
 		Point2i textedpos = get_screen_position() + rect.position - ofs;
 		cache.text_editor_position = textedpos;
@@ -3801,7 +3803,7 @@ bool Tree::edit_selected() {
 		text_editor->select_all();
 
 		if (c.mode == TreeItem::CELL_MODE_RANGE) {
-			popup_rect.size.y += value_editor->get_minimum_size().height;
+			popup_rect.size.y += value_editor_height;
 
 			value_editor->show();
 			updating_value_editor = true;
@@ -3845,41 +3847,38 @@ Size2 Tree::get_internal_min_size() const {
 }
 
 void Tree::update_scrollbars() {
-	Size2 size = get_size();
-	int tbh;
-	if (show_column_titles) {
-		tbh = _get_title_button_height();
-	} else {
-		tbh = 0;
-	}
+	const Size2 size = get_size();
+	const Size2 hmin = h_scroll->get_combined_minimum_size();
+	const Size2 vmin = v_scroll->get_combined_minimum_size();
 
-	Size2 hmin = h_scroll->get_combined_minimum_size();
-	Size2 vmin = v_scroll->get_combined_minimum_size();
+	const Rect2 content_rect = Rect2(theme_cache.panel_style->get_offset(), size - theme_cache.panel_style->get_minimum_size());
+	v_scroll->set_begin(content_rect.get_position() + Vector2(content_rect.get_size().x - vmin.width, 0));
+	v_scroll->set_end(content_rect.get_end() - Vector2(0, hmin.height));
+	h_scroll->set_begin(content_rect.get_position() + Vector2(0, content_rect.get_size().y - hmin.height));
+	h_scroll->set_end(content_rect.get_end() - Vector2(vmin.width, 0));
 
-	v_scroll->set_begin(Point2(size.width - vmin.width, theme_cache.panel_style->get_margin(SIDE_TOP)));
-	v_scroll->set_end(Point2(size.width, size.height - theme_cache.panel_style->get_margin(SIDE_TOP) - theme_cache.panel_style->get_margin(SIDE_BOTTOM)));
+	const Size2 internal_min_size = get_internal_min_size();
+	const int title_button_height = _get_title_button_height();
 
-	h_scroll->set_begin(Point2(0, size.height - hmin.height));
-	h_scroll->set_end(Point2(size.width - vmin.width, size.height));
-
-	Size2 internal_min_size = get_internal_min_size();
-
-	bool display_vscroll = internal_min_size.height + theme_cache.panel_style->get_margin(SIDE_TOP) > size.height;
-	bool display_hscroll = internal_min_size.width + theme_cache.panel_style->get_margin(SIDE_LEFT) > size.width;
+	Size2 tree_content_size = content_rect.get_size() - Vector2(0, title_button_height);
+	bool display_vscroll = internal_min_size.height > tree_content_size.height;
+	bool display_hscroll = internal_min_size.width > tree_content_size.width;
 	for (int i = 0; i < 2; i++) {
 		// Check twice, as both values are dependent on each other.
 		if (display_hscroll) {
-			display_vscroll = internal_min_size.height + theme_cache.panel_style->get_margin(SIDE_TOP) + hmin.height > size.height;
+			tree_content_size.height = content_rect.get_size().height - title_button_height - hmin.height;
+			display_vscroll = internal_min_size.height > tree_content_size.height;
 		}
 		if (display_vscroll) {
-			display_hscroll = internal_min_size.width + theme_cache.panel_style->get_margin(SIDE_LEFT) + vmin.width > size.width;
+			tree_content_size.width = content_rect.get_size().width - vmin.width;
+			display_hscroll = internal_min_size.width > tree_content_size.width;
 		}
 	}
 
 	if (display_vscroll) {
 		v_scroll->show();
 		v_scroll->set_max(internal_min_size.height);
-		v_scroll->set_page(size.height - hmin.height - tbh);
+		v_scroll->set_page(tree_content_size.height);
 		theme_cache.offset.y = v_scroll->get_value();
 	} else {
 		v_scroll->hide();
@@ -3889,7 +3888,7 @@ void Tree::update_scrollbars() {
 	if (display_hscroll) {
 		h_scroll->show();
 		h_scroll->set_max(internal_min_size.width);
-		h_scroll->set_page(size.width - vmin.width);
+		h_scroll->set_page(tree_content_size.width);
 		theme_cache.offset.x = h_scroll->get_value();
 	} else {
 		h_scroll->hide();
@@ -4013,8 +4012,8 @@ void Tree::_notification(int p_what) {
 			Point2 draw_ofs;
 			draw_ofs += bg->get_offset();
 			Size2 draw_size = get_size() - bg->get_minimum_size();
-			if (h_scroll->is_visible()) {
-				draw_size.width -= h_scroll->get_minimum_size().width;
+			if (v_scroll->is_visible()) {
+				draw_size.width -= v_scroll->get_minimum_size().width;
 			}
 
 			bg->draw(ci, Rect2(Point2(), get_size()));
@@ -5281,7 +5280,6 @@ Tree::Tree() {
 	add_child(popup_menu, false, INTERNAL_MODE_FRONT);
 
 	popup_editor = memnew(Popup);
-	popup_editor->set_wrap_controls(true);
 	add_child(popup_editor, false, INTERNAL_MODE_FRONT);
 	popup_editor_vb = memnew(VBoxContainer);
 	popup_editor->add_child(popup_editor_vb);
@@ -5290,11 +5288,9 @@ Tree::Tree() {
 	text_editor = memnew(LineEdit);
 	popup_editor_vb->add_child(text_editor);
 	text_editor->set_v_size_flags(SIZE_EXPAND_FILL);
-	text_editor->set_h_size_flags(SIZE_EXPAND_FILL);
 	value_editor = memnew(HSlider);
-	value_editor->set_v_size_flags(SIZE_EXPAND_FILL);
-	value_editor->set_h_size_flags(SIZE_EXPAND_FILL);
 	popup_editor_vb->add_child(value_editor);
+	value_editor->set_v_size_flags(SIZE_EXPAND_FILL);
 	value_editor->hide();
 
 	h_scroll = memnew(HScrollBar);

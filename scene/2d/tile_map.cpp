@@ -1108,6 +1108,7 @@ void TileMap::_rendering_update_layer(int p_layer) {
 void TileMap::_rendering_cleanup_layer(int p_layer) {
 	ERR_FAIL_INDEX(p_layer, (int)layers.size());
 
+	ERR_FAIL_NULL(RenderingServer::get_singleton());
 	RenderingServer *rs = RenderingServer::get_singleton();
 	if (layers[p_layer].canvas_item.is_valid()) {
 		rs->free(layers[p_layer].canvas_item);
@@ -1280,6 +1281,7 @@ void TileMap::_rendering_create_quadrant(TileMapQuadrant *p_quadrant) {
 }
 
 void TileMap::_rendering_cleanup_quadrant(TileMapQuadrant *p_quadrant) {
+	ERR_FAIL_NULL(RenderingServer::get_singleton());
 	// Free the canvas items.
 	for (const RID &ci : p_quadrant->canvas_items) {
 		RenderingServer::get_singleton()->free(ci);
@@ -1596,6 +1598,7 @@ void TileMap::_physics_update_dirty_quadrants(SelfList<TileMapQuadrant>::List &r
 
 void TileMap::_physics_cleanup_quadrant(TileMapQuadrant *p_quadrant) {
 	// Remove a quadrant.
+	ERR_FAIL_NULL(PhysicsServer2D::get_singleton());
 	for (RID body : p_quadrant->bodies) {
 		bodies_coords.erase(body);
 		PhysicsServer2D::get_singleton()->free(body);
@@ -1728,10 +1731,10 @@ void TileMap::_navigation_update_dirty_quadrants(SelfList<TileMapQuadrant>::List
 					q.navigation_regions[E_cell].resize(tile_set->get_navigation_layers_count());
 
 					for (int layer_index = 0; layer_index < tile_set->get_navigation_layers_count(); layer_index++) {
-						Ref<NavigationPolygon> navpoly;
-						navpoly = tile_data->get_navigation_polygon(layer_index);
+						Ref<NavigationPolygon> navigation_polygon;
+						navigation_polygon = tile_data->get_navigation_polygon(layer_index);
 
-						if (navpoly.is_valid()) {
+						if (navigation_polygon.is_valid()) {
 							Transform2D tile_transform;
 							tile_transform.set_origin(map_to_local(E_cell));
 
@@ -1739,7 +1742,8 @@ void TileMap::_navigation_update_dirty_quadrants(SelfList<TileMapQuadrant>::List
 							NavigationServer2D::get_singleton()->region_set_owner_id(region, get_instance_id());
 							NavigationServer2D::get_singleton()->region_set_map(region, get_world_2d()->get_navigation_map());
 							NavigationServer2D::get_singleton()->region_set_transform(region, tilemap_xform * tile_transform);
-							NavigationServer2D::get_singleton()->region_set_navpoly(region, navpoly);
+							NavigationServer2D::get_singleton()->region_set_navigation_layers(region, tile_set->get_navigation_layer_layers(layer_index));
+							NavigationServer2D::get_singleton()->region_set_navigation_polygon(region, navigation_polygon);
 							q.navigation_regions[E_cell].write[layer_index] = region;
 						}
 					}
@@ -1753,6 +1757,7 @@ void TileMap::_navigation_update_dirty_quadrants(SelfList<TileMapQuadrant>::List
 
 void TileMap::_navigation_cleanup_quadrant(TileMapQuadrant *p_quadrant) {
 	// Clear navigation shapes in the quadrant.
+	ERR_FAIL_NULL(NavigationServer2D::get_singleton());
 	for (const KeyValue<Vector2i, Vector<RID>> &E : p_quadrant->navigation_regions) {
 		for (int i = 0; i < E.value.size(); i++) {
 			RID region = E.value[i];
@@ -3904,35 +3909,26 @@ void TileMap::draw_cells_outline(Control *p_control, const RBSet<Vector2i> &p_ce
 			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_SIDE, 2, 3);
 			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_LEFT_SIDE, 3, 0);
 			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_SIDE, 0, 1);
+		} else if (shape == TileSet::TILE_SHAPE_ISOMETRIC) {
+			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 2, 3);
+			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 1, 2);
+			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
+			DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 3, 0);
 		} else {
 			if (tile_set->get_tile_offset_axis() == TileSet::TILE_OFFSET_AXIS_HORIZONTAL) {
-				if (shape == TileSet::TILE_SHAPE_ISOMETRIC) {
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 3, 4);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 2, 3);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 5, 0);
-				} else {
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 3, 4);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 2, 3);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_LEFT_SIDE, 1, 2);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 5, 0);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_RIGHT_SIDE, 4, 5);
-				}
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 3, 4);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 2, 3);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_LEFT_SIDE, 1, 2);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 5, 0);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_RIGHT_SIDE, 4, 5);
 			} else {
-				if (shape == TileSet::TILE_SHAPE_ISOMETRIC) {
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 3, 4);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 5, 0);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 2, 3);
-				} else {
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 3, 4);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_SIDE, 4, 5);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 5, 0);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_SIDE, 1, 2);
-					DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 2, 3);
-				}
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_RIGHT_SIDE, 3, 4);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_SIDE, 4, 5);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_BOTTOM_LEFT_SIDE, 5, 0);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_LEFT_SIDE, 0, 1);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_SIDE, 1, 2);
+				DRAW_SIDE_IF_NEEDED(TileSet::CELL_NEIGHBOR_TOP_RIGHT_SIDE, 2, 3);
 			}
 		}
 	}

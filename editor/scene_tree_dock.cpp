@@ -134,6 +134,8 @@ void SceneTreeDock::shortcut_input(const Ref<InputEvent> &p_event) {
 		_tool_selected(TOOL_MOVE_DOWN);
 	} else if (ED_IS_SHORTCUT("scene_tree/reparent", p_event)) {
 		_tool_selected(TOOL_REPARENT);
+	} else if (ED_IS_SHORTCUT("scene_tree/reparent_to_new_node", p_event)) {
+		_tool_selected(TOOL_REPARENT_TO_NEW_NODE);
 	} else if (ED_IS_SHORTCUT("scene_tree/save_branch_as_scene", p_event)) {
 		_tool_selected(TOOL_NEW_SCENE_FROM);
 	} else if (ED_IS_SHORTCUT("scene_tree/delete_no_confirm", p_event)) {
@@ -1965,37 +1967,21 @@ void SceneTreeDock::_script_created(Ref<Script> p_script) {
 	}
 
 	Ref<EditorUndoRedoManager> &undo_redo = EditorNode::get_undo_redo();
-	if (selected.size() == 1) {
-		Node *node = selected.front()->get();
-		Ref<Script> existing = node->get_script();
-
-		undo_redo->create_action(TTR("Attach Script"), UndoRedo::MERGE_DISABLE, node);
-		undo_redo->add_do_method(InspectorDock::get_singleton(), "store_script_properties", node);
-		undo_redo->add_undo_method(InspectorDock::get_singleton(), "store_script_properties", node);
-		undo_redo->add_do_method(node, "set_script", p_script);
-		undo_redo->add_undo_method(node, "set_script", existing);
-		undo_redo->add_do_method(InspectorDock::get_singleton(), "apply_script_properties", node);
-		undo_redo->add_undo_method(InspectorDock::get_singleton(), "apply_script_properties", node);
+	undo_redo->create_action(TTR("Attach Script"), UndoRedo::MERGE_DISABLE, selected.front()->get());
+	for (Node *E : selected) {
+		Ref<Script> existing = E->get_script();
+		undo_redo->add_do_method(InspectorDock::get_singleton(), "store_script_properties", E);
+		undo_redo->add_undo_method(InspectorDock::get_singleton(), "store_script_properties", E);
+		undo_redo->add_do_method(E, "set_script", p_script);
+		undo_redo->add_undo_method(E, "set_script", existing);
+		undo_redo->add_do_method(InspectorDock::get_singleton(), "apply_script_properties", E);
+		undo_redo->add_undo_method(InspectorDock::get_singleton(), "apply_script_properties", E);
 		undo_redo->add_do_method(this, "_update_script_button");
 		undo_redo->add_undo_method(this, "_update_script_button");
-		undo_redo->commit_action();
-	} else {
-		undo_redo->create_action(TTR("Attach Script"), UndoRedo::MERGE_DISABLE, selected.front()->get());
-		for (Node *E : selected) {
-			Ref<Script> existing = E->get_script();
-			undo_redo->add_do_method(InspectorDock::get_singleton(), "store_script_properties", E);
-			undo_redo->add_undo_method(InspectorDock::get_singleton(), "store_script_properties", E);
-			undo_redo->add_do_method(E, "set_script", p_script);
-			undo_redo->add_undo_method(E, "set_script", existing);
-			undo_redo->add_do_method(InspectorDock::get_singleton(), "apply_script_properties", E);
-			undo_redo->add_undo_method(InspectorDock::get_singleton(), "apply_script_properties", E);
-			undo_redo->add_do_method(this, "_update_script_button");
-			undo_redo->add_undo_method(this, "_update_script_button");
-		}
-		undo_redo->commit_action();
 	}
+	undo_redo->commit_action();
 
-	_push_item(p_script.operator->());
+	_push_item(p_script.ptr());
 	_update_script_button();
 }
 
@@ -3233,6 +3219,7 @@ List<Node *> SceneTreeDock::paste_nodes() {
 		if (!paste_parent) {
 			paste_parent = dup;
 			owner = dup;
+			dup->set_scene_file_path(String()); // Make sure the scene path is empty, to avoid accidental references.
 			ur->add_do_method(EditorNode::get_singleton(), "set_edited_scene", dup);
 		} else {
 			ur->add_do_method(paste_parent, "add_child", dup, true);

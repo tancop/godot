@@ -924,6 +924,7 @@ void TileMapEditorTilesPlugin::forward_canvas_draw_over_viewport(Control *p_over
 							Color modulate = tile_data->get_modulate();
 							Color self_modulate = tile_map->get_self_modulate();
 							modulate *= self_modulate;
+							modulate *= tile_map->get_layer_modulate(tile_map_layer);
 
 							// Draw the tile.
 							p_overlay->draw_texture_rect_region(atlas_source->get_texture(), dest_rect, source_rect, modulate * Color(1.0, 1.0, 1.0, 0.5), transpose, tile_set->is_uv_clipping());
@@ -1487,13 +1488,15 @@ void TileMapEditorTilesPlugin::_update_fix_selected_and_hovered() {
 	}
 
 	// Selection if needed.
-	for (RBSet<TileMapCell>::Element *E = tile_set_selection.front(); E; E = E->next()) {
+	for (RBSet<TileMapCell>::Element *E = tile_set_selection.front(); E;) {
+		RBSet<TileMapCell>::Element *N = E->next();
 		const TileMapCell *selected = &(E->get());
 		if (!tile_set->has_source(selected->source_id) ||
 				!tile_set->get_source(selected->source_id)->has_tile(selected->get_atlas_coords()) ||
 				!tile_set->get_source(selected->source_id)->has_alternative_tile(selected->get_atlas_coords(), selected->alternative_tile)) {
 			tile_set_selection.erase(E);
 		}
+		E = N;
 	}
 
 	if (!tile_map_selection.is_empty()) {
