@@ -604,8 +604,16 @@ namespace Godot.SourceGenerators
 
             static string GetTypeName(INamedTypeSymbol memberSymbol)
             {
-                if (memberSymbol.GetAttributes()
-                    .Any(a => a.AttributeClass?.IsGodotGlobalClassAttribute() ?? false))
+                var globalClassAttr = memberSymbol.GetAttributes()
+                    .FirstOrDefault(a => a.AttributeClass?.IsGodotGlobalClassAttribute() ?? false);
+
+                string? globalClassName = null;
+
+                if (globalClassAttr is { ConstructorArguments: { Length: > 0 } })
+                {
+                    return globalClassAttr.ConstructorArguments[0].Value?.ToString();
+                }
+                else if (globalClassAttr is not null)
                 {
                     return memberSymbol.Name;
                 }
